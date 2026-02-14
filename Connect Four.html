@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connect Four</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --board-color: #8B5E3C;
+            --board-dark: #6B4226;
+            --board-light: #A07450;
+            --hole-color: #140a04;
+            --p1: #D04040;
+            --p1-light: #EF6B6B;
+            --p1-dark: #A02020;
+            --p2: #E4B517;
+            --p2-light: #F5D74E;
+            --p2-dark: #B08A0E;
+            --bg: #F0E6D3;
+            --bg-dark: #E0D2BB;
+            --txt: #3E2C1C;
+            --txt-light: #7A6050;
+            --cell: clamp(44px, 10vw, 72px);
+            --gap: clamp(4px, 0.9vw, 10px);
+            --pad: clamp(8px, 1.4vw, 16px);
+            --radius: clamp(10px, 2vw, 18px);
+        }
+
+        body {
+            font-family: 'Nunito', system-ui, sans-serif;
+            background-color: var(--bg);
+            background-image:
+                radial-gradient(ellipse at 25% 40%, rgba(200,170,130,0.35) 0%, transparent 60%),
+                radial-gradient(ellipse at 75% 60%, rgba(200,170,130,0.25) 0%, transparent 55%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--txt);
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        #app {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+            padding: 18px 12px 28px;
+            width: 100%;
+            max-width: 620px;
+        }
+
+        h1 {
+            font-family: 'Lilita One', cursive;
+            font-size: clamp(26px, 6vw, 44px);
+            color: var(--txt);
+            text-shadow: 0 2px 0 rgba(0,0,0,0.08);
+            letter-spacing: 1px;
+        }
+        h1 .red   { color: var(--p1); }
+        h1 .gold  { color: var(--p2); }
+
+        /* ── Difficulty Toggle ── */
+        .difficulty-toggle {
+            display: flex;
+            gap: 4px;
+            background: var(--bg-dark);
+            border-radius: 12px;
+            padding: 4px;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.07);
+        }
+        .diff-btn {
+            font-family: 'Nunito', system-ui, sans-serif;
+            font-weight: 700;
+            font-size: clamp(11px, 2.4vw, 14px);
+            padding: 7px 16px;
+            border: none;
+            border-radius: 9px;
+            cursor: pointer;
+            background: transparent;
+            color: var(--txt-light);
+            transition: all 0.25s ease;
+        }
+        .diff-btn:hover { color: var(--txt); background: rgba(255,255,255,0.3); }
+        .diff-btn.active {
+            background: #fff;
+            color: var(--txt);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        /* ── Status ── */
+        .status {
+            font-weight: 700;
+            font-size: clamp(14px, 3vw, 18px);
+            padding: 6px 22px;
+            border-radius: 20px;
+            background: rgba(255,255,255,0.45);
+            min-width: 180px;
+            text-align: center;
+            transition: background 0.35s, color 0.35s;
+            line-height: 1.5;
+        }
+        .status.win  { background: rgba(34,180,80,0.14); color: #166534; }
+        .status.lose { background: rgba(220,60,50,0.12); color: #991B1B; }
+        .status.draw { background: rgba(220,170,20,0.16); color: #7A4D0E; }
+
+        /* ── Board Area ── */
+        .board-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        /* Column hover indicators */
+        .indicators {
+            display: grid;
+            grid-template-columns: repeat(7, var(--cell));
+            gap: var(--gap);
+            padding: 0 var(--pad);
+            height: calc(var(--cell) * 0.55);
+        }
+        .indicator {
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding-bottom: 3px;
+        }
+        .indicator-dot {
+            width: 62%;
+            aspect-ratio: 1;
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity 0.15s, transform 0.15s;
+            transform: translateY(-8px);
+        }
+        .indicator.active .indicator-dot {
+            opacity: 0.55;
+            transform: translateY(0);
+        }
+        .indicator-dot.red {
+            background: radial-gradient(circle at 38% 38%, var(--p1-light), var(--p1));
+        }
+        .indicator-dot.yellow {
+            background: radial-gradient(circle at 38% 38%, var(--p2-light), var(--p2));
+        }
+
+        /* Board frame */
+        .board-frame {
+            background:
+                repeating-linear-gradient(
+                    92deg,
+                    transparent 0px, transparent 6px,
+                    rgba(0,0,0,0.018) 6px, rgba(0,0,0,0.018) 7px
+                ),
+                linear-gradient(168deg, var(--board-light) 0%, var(--board-color) 35%, var(--board-dark) 100%);
+            border-radius: var(--radius);
+            padding: var(--pad);
+            box-shadow:
+                0 10px 36px rgba(80,44,16,0.35),
+                0 2px 8px rgba(80,44,16,0.18),
+                inset 0 1px 0 rgba(255,255,255,0.15),
+                inset 0 -1px 0 rgba(0,0,0,0.12);
+        }
+
+        /* Grid */
+        .board {
+            display: grid;
+            grid-template-columns: repeat(7, var(--cell));
+            grid-template-rows: repeat(6, var(--cell));
+            gap: var(--gap);
+            overflow: visible;
+        }
+
+        /* Cell hole */
+        .cell {
+            border-radius: 50%;
+            background: var(--hole-color);
+            box-shadow:
+                inset 0 4px 8px rgba(0,0,0,0.65),
+                inset 0 -2px 4px rgba(255,255,255,0.04);
+            cursor: pointer;
+            position: relative;
+            overflow: visible;
+            transition: box-shadow 0.15s;
+        }
+        .cell.disabled { cursor: default; }
+        .cell.col-highlight {
+            box-shadow:
+                inset 0 4px 8px rgba(0,0,0,0.65),
+                inset 0 -2px 4px rgba(255,255,255,0.04),
+                0 0 0 2.5px rgba(255,255,255,0.18);
+        }
+
+        /* ── Pieces ── */
+        .piece {
+            position: absolute;
+            inset: 8%;
+            border-radius: 50%;
+            z-index: 1;
+        }
+        .piece.p1 {
+            background: radial-gradient(circle at 36% 32%, var(--p1-light) 0%, var(--p1) 55%, var(--p1-dark) 100%);
+            box-shadow:
+                inset 0 -4px 6px rgba(0,0,0,0.25),
+                inset 0 2px 4px rgba(255,255,255,0.22),
+                0 2px 5px rgba(0,0,0,0.35);
+        }
+        .piece.p2 {
+            background: radial-gradient(circle at 36% 32%, var(--p2-light) 0%, var(--p2) 55%, var(--p2-dark) 100%);
+            box-shadow:
+                inset 0 -4px 6px rgba(0,0,0,0.2),
+                inset 0 2px 4px rgba(255,255,255,0.3),
+                0 2px 5px rgba(0,0,0,0.3);
+        }
+
+        /* Drop animation */
+        .piece.dropping {
+            animation: dropBounce var(--dur) both;
+            will-change: transform;
+        }
+        @keyframes dropBounce {
+            0%   { transform: translateY(var(--from)); animation-timing-function: ease-in; }
+            55%  { transform: translateY(0);           animation-timing-function: ease-out; }
+            72%  { transform: translateY(-12px);       animation-timing-function: ease-in; }
+            85%  { transform: translateY(0);           animation-timing-function: ease-out; }
+            93%  { transform: translateY(-4px);        animation-timing-function: ease-in; }
+            100% { transform: translateY(0); }
+        }
+
+        /* Win glow */
+        .piece.winning {
+            animation: winPulse 0.75s ease-in-out infinite alternate !important;
+            z-index: 3;
+        }
+        @keyframes winPulse {
+            0%   { filter: brightness(1);   transform: scale(1); }
+            100% { filter: brightness(1.25); transform: scale(1.07); }
+        }
+        .piece.winning::after {
+            content: '';
+            position: absolute;
+            inset: -5px;
+            border-radius: 50%;
+            border: 3px solid rgba(255,255,255,0.7);
+            animation: ringPulse 0.75s ease-in-out infinite alternate;
+        }
+        @keyframes ringPulse {
+            0%   { opacity: 0.3; transform: scale(0.97); }
+            100% { opacity: 0.8; transform: scale(1.02); }
+        }
+
+        /* ── Scores ── */
+        .scores {
+            display: flex;
+            gap: clamp(18px, 5vw, 40px);
+            align-items: center;
+            margin-top: 2px;
+        }
+        .score {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1px;
+        }
+        .score-label {
+            font-size: clamp(11px, 2.2vw, 13px);
+            font-weight: 700;
+            color: var(--txt-light);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .sdot {
+            width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+        }
+        .sdot.red    { background: var(--p1); }
+        .sdot.yellow { background: var(--p2); }
+        .score-value {
+            font-family: 'Lilita One', cursive;
+            font-size: clamp(22px, 5vw, 32px);
+            line-height: 1.1;
+        }
+
+        /* ── New Game Btn ── */
+        .btn-new {
+            font-family: 'Nunito', system-ui, sans-serif;
+            font-weight: 800;
+            font-size: clamp(13px, 2.5vw, 15px);
+            padding: 10px 30px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            background: var(--board-color);
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(80,44,16,0.28), 0 2px 4px rgba(80,44,16,0.14);
+            transition: all 0.2s ease;
+            letter-spacing: 0.5px;
+        }
+        .btn-new:hover {
+            background: var(--board-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(80,44,16,0.34), 0 2px 4px rgba(80,44,16,0.18);
+        }
+        .btn-new:active {
+            transform: translateY(1px);
+            box-shadow: 0 2px 6px rgba(80,44,16,0.2);
+        }
+
+        /* Thinking dots */
+        .thinking { display: inline-flex; align-items: center; gap: 3px; margin-left: 4px; vertical-align: middle; }
+        .tdot {
+            width: 5px; height: 5px; border-radius: 50%; background: var(--txt-light);
+            animation: bounce 1s ease-in-out infinite;
+        }
+        .tdot:nth-child(2) { animation-delay: 0.15s; }
+        .tdot:nth-child(3) { animation-delay: 0.3s; }
+        @keyframes bounce {
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
+            30% { transform: translateY(-5px); opacity: 1; }
+        }
+
+        /* Confetti burst */
+        .confetti-wrap { position: fixed; inset: 0; pointer-events: none; z-index: 100; overflow: hidden; }
+        .confetti-piece {
+            position: absolute;
+            width: 8px; height: 14px;
+            border-radius: 2px;
+            animation: confettiFall var(--cDur) ease-in forwards;
+            opacity: 0;
+        }
+        @keyframes confettiFall {
+            0%   { transform: translateY(var(--cY0)) translateX(0) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(110vh) translateX(var(--cDx)) rotate(var(--cRot)); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+    <h1><span class="red">Connect</span> <span class="gold">Four</span></h1>
+
+    <div class="difficulty-toggle" id="diffToggle">
+        <button class="diff-btn" data-diff="beginner">Beginner</button>
+        <button class="diff-btn active" data-diff="medium">Medium</button>
+        <button class="diff-btn" data-diff="pro">Pro</button>
+    </div>
+
+    <div class="status" id="status">Your turn — drop a piece!</div>
+
+    <div class="board-area">
+        <div class="indicators" id="indicators"></div>
+        <div class="board-frame">
+            <div class="board" id="board"></div>
+        </div>
+    </div>
+
+    <div class="scores">
+        <div class="score">
+            <div class="score-label"><span class="sdot red"></span>You</div>
+            <div class="score-value" id="sYou">0</div>
+        </div>
+        <div class="score">
+            <div class="score-label">Draws</div>
+            <div class="score-value" id="sDraws">0</div>
+        </div>
+        <div class="score">
+            <div class="score-label">AI<span class="sdot yellow"></span></div>
+            <div class="score-value" id="sAI">0</div>
+        </div>
+    </div>
+
+    <button class="btn-new" id="btnNew">New Game</button>
+</div>
+
+<script>
+/* ═══════════════════════════════════════
+   CONSTANTS & STATE
+   ═══════════════════════════════════════ */
+const R = 6, C = 7, E = 0, P = 1, A = 2;
+
+let board, gameOver, animating, difficulty, hovCol, scores, kbCol;
+
+const $ = id => document.getElementById(id);
+const boardEl = $('board'), statusEl = $('status'), indEl = $('indicators');
+
+/* ═══════════════════════════════════════
+   BOARD LOGIC
+   ═══════════════════════════════════════ */
+function init() {
+    board = Array.from({length: R}, () => Array(C).fill(E));
+    gameOver = false;
+    animating = false;
+    hovCol = -1;
+    kbCol = 3;
+    render();
+    renderIndicators();
+    setStatus('Your turn — drop a piece!');
+}
+
+function validRow(c) {
+    for (let r = R - 1; r >= 0; r--) if (board[r][c] === E) return r;
+    return -1;
+}
+function validCols() {
+    const v = [];
+    for (let c = 0; c < C; c++) if (board[0][c] === E) v.push(c);
+    return v;
+}
+function drop(c, p) {
+    const r = validRow(c);
+    if (r < 0) return -1;
+    board[r][c] = p;
+    return r;
+}
+function undo(r, c) { board[r][c] = E; }
+
+/* ═══════════════════════════════════════
+   WIN / DRAW DETECTION
+   ═══════════════════════════════════════ */
+function checkWin(p) {
+    for (let r = 0; r < R; r++)
+        for (let c = 0; c <= C-4; c++)
+            if (board[r][c]===p && board[r][c+1]===p && board[r][c+2]===p && board[r][c+3]===p)
+                return [[r,c],[r,c+1],[r,c+2],[r,c+3]];
+    for (let r = 0; r <= R-4; r++)
+        for (let c = 0; c < C; c++)
+            if (board[r][c]===p && board[r+1][c]===p && board[r+2][c]===p && board[r+3][c]===p)
+                return [[r,c],[r+1,c],[r+2,c],[r+3,c]];
+    for (let r = 0; r <= R-4; r++)
+        for (let c = 0; c <= C-4; c++)
+            if (board[r][c]===p && board[r+1][c+1]===p && board[r+2][c+2]===p && board[r+3][c+3]===p)
+                return [[r,c],[r+1,c+1],[r+2,c+2],[r+3,c+3]];
+    for (let r = 0; r <= R-4; r++)
+        for (let c = 3; c < C; c++)
+            if (board[r][c]===p && board[r+1][c-1]===p && board[r+2][c-2]===p && board[r+3][c-3]===p)
+                return [[r,c],[r+1,c-1],[r+2,c-2],[r+3,c-3]];
+    return null;
+}
+function isDraw() { return board[0].every(v => v !== E); }
+
+/* ═══════════════════════════════════════
+   AI — BEGINNER  (random)
+   ═══════════════════════════════════════ */
+function aiBeginner() {
+    const v = validCols();
+    // Always take a winning move
+    for (const c of v) { const r = drop(c,A); if (checkWin(A)) { undo(r,c); return c; } undo(r,c); }
+    // 50% chance to block opponent win
+    if (Math.random() < 0.5) {
+        for (const c of v) { const r = drop(c,P); if (checkWin(P)) { undo(r,c); return c; } undo(r,c); }
+    }
+    // Weighted random favoring center
+    const weights = v.map(c => 4 - Math.abs(c - 3));
+    const total = weights.reduce((a, b) => a + b, 0);
+    let rnd = Math.random() * total;
+    for (let i = 0; i < v.length; i++) { rnd -= weights[i]; if (rnd <= 0) return v[i]; }
+    return v[v.length - 1];
+}
+
+/* ═══════════════════════════════════════
+   AI — MEDIUM  (heuristic look-ahead)
+   ═══════════════════════════════════════ */
+function aiMedium() {
+    const vc = validCols();
+    // Immediate win
+    for (const c of vc) { const r = drop(c,A); if (checkWin(A)) { undo(r,c); return c; } undo(r,c); }
+    // Immediate block
+    for (const c of vc) { const r = drop(c,P); if (checkWin(P)) { undo(r,c); return c; } undo(r,c); }
+    // Minimax at moderate depth
+    const filled = board.flat().filter(x=>x!==E).length;
+    const depth = filled < 10 ? 4 : 5;
+    const [col] = minimax(depth, -Infinity, Infinity, true);
+    return col;
+}
+
+/* ═══════════════════════════════════════
+   AI — PRO  (minimax + alpha-beta)
+   ═══════════════════════════════════════ */
+function evalWindow(w, p) {
+    const o = p === A ? P : A;
+    const pc = w.filter(x=>x===p).length, oc = w.filter(x=>x===o).length, ec = w.filter(x=>x===E).length;
+    if (pc === 4) return 100000;
+    if (oc === 4) return -100000;
+    let s = 0;
+    if (pc === 3 && ec === 1) s += 50;
+    else if (pc === 2 && ec === 2) s += 10;
+    if (oc === 3 && ec === 1) s -= 80;
+    else if (oc === 2 && ec === 2) s -= 8;
+    return s;
+}
+
+function evalBoard() {
+    let s = 0;
+    // Center column weight
+    for (let r = 0; r < R; r++) {
+        if (board[r][3] === A) s += 6;
+        else if (board[r][3] === P) s -= 6;
+    }
+    // Adjacent center columns
+    for (let r = 0; r < R; r++) {
+        if (board[r][2] === A || board[r][4] === A) s += 3;
+        if (board[r][2] === P || board[r][4] === P) s -= 3;
+    }
+    // All windows of 4
+    for (let r = 0; r < R; r++)
+        for (let c = 0; c <= C-4; c++)
+            s += evalWindow([board[r][c],board[r][c+1],board[r][c+2],board[r][c+3]], A);
+    for (let r = 0; r <= R-4; r++)
+        for (let c = 0; c < C; c++)
+            s += evalWindow([board[r][c],board[r+1][c],board[r+2][c],board[r+3][c]], A);
+    for (let r = 0; r <= R-4; r++)
+        for (let c = 0; c <= C-4; c++)
+            s += evalWindow([board[r][c],board[r+1][c+1],board[r+2][c+2],board[r+3][c+3]], A);
+    for (let r = 0; r <= R-4; r++)
+        for (let c = 3; c < C; c++)
+            s += evalWindow([board[r][c],board[r+1][c-1],board[r+2][c-2],board[r+3][c-3]], A);
+    return s;
+}
+
+function terminal() { return !!checkWin(A) || !!checkWin(P) || validCols().length === 0; }
+
+function minimax(depth, a, b, max) {
+    const vc = validCols();
+    const term = terminal();
+    if (depth === 0 || term) {
+        if (term) {
+            if (checkWin(A)) return [null, 1e7 + depth];
+            if (checkWin(P)) return [null, -1e7 - depth];
+            return [null, 0];
+        }
+        return [null, evalBoard()];
+    }
+    const ordered = [...vc].sort((x,y) => Math.abs(x-3) - Math.abs(y-3));
+    if (max) {
+        let best = -Infinity, col = ordered[0];
+        for (const c of ordered) {
+            const r = drop(c, A);
+            const [, sc] = minimax(depth-1, a, b, false);
+            undo(r, c);
+            if (sc > best) { best = sc; col = c; }
+            a = Math.max(a, sc);
+            if (a >= b) break;
+        }
+        return [col, best];
+    } else {
+        let best = Infinity, col = ordered[0];
+        for (const c of ordered) {
+            const r = drop(c, P);
+            const [, sc] = minimax(depth-1, a, b, true);
+            undo(r, c);
+            if (sc < best) { best = sc; col = c; }
+            b = Math.min(b, sc);
+            if (a >= b) break;
+        }
+        return [col, best];
+    }
+}
+
+function aiPro() {
+    const vc = validCols();
+    // Immediate win
+    for (const c of vc) { const r = drop(c,A); if (checkWin(A)) { undo(r,c); return c; } undo(r,c); }
+    // Immediate block
+    for (const c of vc) { const r = drop(c,P); if (checkWin(P)) { undo(r,c); return c; } undo(r,c); }
+    // Deeper search — use higher depth early when more pruning is possible
+    const filled = board.flat().filter(x=>x!==E).length;
+    const depth = filled < 8 ? 8 : (filled < 20 ? 9 : 10);
+    const [col] = minimax(depth, -Infinity, Infinity, true);
+    return col;
+}
+
+function getAIMove() {
+    if (difficulty === 'beginner') return aiBeginner();
+    if (difficulty === 'medium')   return aiMedium();
+    return aiPro();
+}
+
+/* ═══════════════════════════════════════
+   RENDERING
+   ═══════════════════════════════════════ */
+function cellAt(r, c) {
+    return boardEl.children[r * C + c];
+}
+
+function render() {
+    boardEl.innerHTML = '';
+    for (let r = 0; r < R; r++) {
+        for (let c = 0; c < C; c++) {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            cell.dataset.row = r;
+            cell.dataset.col = c;
+            if (board[r][c] !== E) {
+                const pc = document.createElement('div');
+                pc.className = 'piece ' + (board[r][c] === P ? 'p1' : 'p2');
+                cell.appendChild(pc);
+            }
+            cell.addEventListener('click', () => onCellClick(c));
+            cell.addEventListener('mouseenter', () => onHover(c));
+            cell.addEventListener('mouseleave', clearHover);
+            boardEl.appendChild(cell);
+        }
+    }
+}
+
+function renderIndicators() {
+    indEl.innerHTML = '';
+    for (let c = 0; c < C; c++) {
+        const ind = document.createElement('div');
+        ind.className = 'indicator';
+        ind.id = 'ind-' + c;
+        const dot = document.createElement('div');
+        dot.className = 'indicator-dot red';
+        ind.appendChild(dot);
+        indEl.appendChild(ind);
+    }
+}
+
+function animateDrop(r, c, p) {
+    return new Promise(res => {
+        const cell = cellAt(r, c);
+        const pc = document.createElement('div');
+        pc.className = 'piece ' + (p === P ? 'p1' : 'p2') + ' dropping';
+        const sz = cell.offsetHeight;
+        const gap = parseFloat(getComputedStyle(boardEl).gap) || 8;
+        const dist = (r + 1.5) * (sz + gap);
+        const dur = 0.3 + r * 0.055;
+        pc.style.setProperty('--from', `-${dist}px`);
+        pc.style.setProperty('--dur', `${dur}s`);
+        cell.appendChild(pc);
+        pc.addEventListener('animationend', () => {
+            pc.classList.remove('dropping');
+            pc.style.removeProperty('--from');
+            pc.style.removeProperty('--dur');
+            res();
+        }, {once: true});
+    });
+}
+
+function highlightWin(cells) {
+    for (const [r,c] of cells) {
+        const pc = cellAt(r,c).querySelector('.piece');
+        if (pc) pc.classList.add('winning');
+    }
+}
+
+function setStatus(txt, type) {
+    statusEl.textContent = txt;
+    statusEl.className = 'status' + (type ? ' ' + type : '');
+}
+function showThinking() {
+    statusEl.innerHTML = 'AI is thinking<span class="thinking"><span class="tdot"></span><span class="tdot"></span><span class="tdot"></span></span>';
+    statusEl.className = 'status';
+}
+function updateScores() {
+    $('sYou').textContent = scores.player;
+    $('sAI').textContent = scores.ai;
+    $('sDraws').textContent = scores.draws;
+}
+
+/* ═══════════════════════════════════════
+   CONFETTI
+   ═══════════════════════════════════════ */
+function spawnConfetti() {
+    const wrap = document.createElement('div');
+    wrap.className = 'confetti-wrap';
+    const colors = ['#D04040','#E4B517','#E87040','#40A860','#D06090','#F5D74E'];
+    for (let i = 0; i < 60; i++) {
+        const p = document.createElement('div');
+        p.className = 'confetti-piece';
+        p.style.left = Math.random() * 100 + 'vw';
+        p.style.background = colors[Math.floor(Math.random()*colors.length)];
+        p.style.setProperty('--cY0', -(20 + Math.random()*30) + 'vh');
+        p.style.setProperty('--cDx', (Math.random()-0.5)*200 + 'px');
+        p.style.setProperty('--cRot', (Math.random()*720-360) + 'deg');
+        p.style.setProperty('--cDur', (1.8 + Math.random()*1.2) + 's');
+        p.style.animationDelay = Math.random()*0.5 + 's';
+        p.style.width = (5 + Math.random()*6) + 'px';
+        p.style.height = (8 + Math.random()*10) + 'px';
+        wrap.appendChild(p);
+    }
+    document.body.appendChild(wrap);
+    setTimeout(() => wrap.remove(), 4000);
+}
+
+/* ═══════════════════════════════════════
+   EVENT HANDLERS
+   ═══════════════════════════════════════ */
+function onHover(c) {
+    if (gameOver || animating) return;
+    hovCol = c;
+    const canDrop = validRow(c) >= 0;
+    document.querySelectorAll('.indicator').forEach((ind, i) => {
+        ind.classList.toggle('active', i === c && canDrop);
+    });
+    document.querySelectorAll('.cell').forEach(cell => {
+        cell.classList.toggle('col-highlight', +cell.dataset.col === c && canDrop);
+    });
+}
+function clearHover() {
+    hovCol = -1;
+    document.querySelectorAll('.indicator').forEach(i => i.classList.remove('active'));
+    document.querySelectorAll('.cell').forEach(c => c.classList.remove('col-highlight'));
+}
+
+async function onCellClick(c) {
+    if (gameOver || animating) return;
+    if (validRow(c) < 0) return;
+
+    animating = true;
+    clearHover();
+
+    // Player move
+    const r = drop(c, P);
+    await animateDrop(r, c, P);
+
+    const pw = checkWin(P);
+    if (pw) {
+        gameOver = true; animating = false;
+        highlightWin(pw);
+        scores.player++;
+        updateScores();
+        setStatus('You win! 🎉', 'win');
+        spawnConfetti();
+        return;
+    }
+    if (isDraw()) {
+        gameOver = true; animating = false;
+        scores.draws++;
+        updateScores();
+        setStatus("It's a draw!", 'draw');
+        return;
+    }
+
+    // AI move
+    showThinking();
+    await new Promise(ok => setTimeout(ok, difficulty === 'pro' ? 80 : 300));
+
+    const ac = getAIMove();
+    const ar = drop(ac, A);
+    await animateDrop(ar, ac, A);
+
+    const aw = checkWin(A);
+    if (aw) {
+        gameOver = true; animating = false;
+        highlightWin(aw);
+        scores.ai++;
+        updateScores();
+        setStatus('AI wins!', 'lose');
+        return;
+    }
+    if (isDraw()) {
+        gameOver = true; animating = false;
+        scores.draws++;
+        updateScores();
+        setStatus("It's a draw!", 'draw');
+        return;
+    }
+
+    animating = false;
+    setStatus('Your turn — drop a piece!');
+}
+
+/* ═══════════════════════════════════════
+   SETUP
+   ═══════════════════════════════════════ */
+difficulty = 'medium';
+scores = { player: 0, ai: 0, draws: 0 };
+
+$('diffToggle').addEventListener('click', e => {
+    const btn = e.target.closest('.diff-btn');
+    if (!btn) return;
+    difficulty = btn.dataset.diff;
+    document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+});
+
+document.addEventListener('keydown', e => {
+    if (gameOver || animating) return;
+    const key = e.key;
+    if (key === 'ArrowLeft' || key === 'a' || key === 'A') {
+        e.preventDefault();
+        kbCol = Math.max(0, kbCol - 1);
+        onHover(kbCol);
+    } else if (key === 'ArrowRight' || key === 'd' || key === 'D') {
+        e.preventDefault();
+        kbCol = Math.min(C - 1, kbCol + 1);
+        onHover(kbCol);
+    } else if (key === 'ArrowDown' || key === 's' || key === 'S') {
+        e.preventDefault();
+        onCellClick(kbCol);
+    }
+});
+
+$('btnNew').addEventListener('click', init);
+
+init();
+</script>
+</body>
+</html>
